@@ -55,7 +55,7 @@ describe('authApi', () => {
     const auth = await import('./authApi');
     const registration = {
       firstName: 'Ana', lastName: 'Ruiz', documentType: 'CC', documentNumber: '123',
-      email: 'ana@example.com', phone: '3001234567', password: 'Password123*',
+      email: 'ana@example.com', phone: '3001234567', password: 'Password123*', insurancePlanId: 9,
     };
 
     const user = await auth.register(registration);

@@ -23,13 +23,18 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
   const [password, setPassword] = useState('');
   const [insurancePlanId, setInsurancePlanId] = useState('');
   const [insurancePlans, setInsurancePlans] = useState<CatalogItem[]>([]);
+  const [plansLoading, setPlansLoading] = useState(true);
+  const [plansError, setPlansError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    catalogsApi.insurancePlans().then(setInsurancePlans).catch(() => setInsurancePlans([]));
+    catalogsApi.insurancePlans()
+      .then((plans) => { setInsurancePlans(plans.filter((plan) => plan.active !== false)); setPlansError(''); })
+      .catch(() => { setInsurancePlans([]); setPlansError('No fue posible cargar los planes. Puedes continuar sin afiliación.'); })
+      .finally(() => setPlansLoading(false));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -54,7 +59,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
         email,
         phone,
         password,
-        ...(insurancePlanId ? { insurancePlanId } : {}),
+        ...(insurancePlanId ? { insurancePlanId: Number(insurancePlanId) } : {}),
       });
       onRegisterSuccess(user);
     } catch (error) {
@@ -350,10 +355,13 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
                 <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1.5" htmlFor="reg-insurance-plan">
                   Plan de afiliación (opcional)
                 </label>
-                <select id="reg-insurance-plan" value={insurancePlanId} onChange={(event) => setInsurancePlanId(event.target.value)} className="input-transition block w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+                <select id="reg-insurance-plan" aria-describedby="insurance-plan-status" value={insurancePlanId} onChange={(event) => setInsurancePlanId(event.target.value)} className="input-transition block w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
                   <option value="">Sin afiliación por ahora</option>
                   {insurancePlans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}
                 </select>
+                <p id="insurance-plan-status" className={`mt-1 text-xs ${plansError ? 'text-amber-700' : 'text-slate-500'}`} role={plansError ? 'status' : undefined}>
+                  {plansLoading ? 'Cargando planes activos…' : plansError || (insurancePlans.length === 0 ? 'No hay planes activos disponibles.' : '')}
+                </p>
               </div>
 
               {/* Consent checkbox */}

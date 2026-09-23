@@ -17,7 +17,7 @@ export interface Registration {
   email: string;
   phone: string;
   password: string;
-  insurancePlanId?: string;
+  insurancePlanId?: number;
 }
 
 // Contrato real de citas-api: el registro no devuelve la contraseña; roles es un arreglo.
