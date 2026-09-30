@@ -28,6 +28,9 @@ export const adminApi = {
   assignSpecialties: (id: string, specialtyIds: string[], primarySpecialtyId: string) => request<void>(`/admin/professionals/${id}/specialties`, { method: 'PUT', body: JSON.stringify({ specialtyIds, primarySpecialtyId }) }),
   assignLocations: (id: string, locationIds: string[]) => request<void>(`/admin/professionals/${id}/locations`, { method: 'PUT', body: JSON.stringify({ locationIds }) }), setActive: (id: string, active: boolean) => request<Professional>(`/admin/professionals/${id}/active`, { method: 'PATCH', body: JSON.stringify({ active }) }),
 };
+export const professionalApi = {
+  agenda: (filters: { from?: string; to?: string; locationId?: string } = {}) => request<Appointment[]>(`/professional/agenda${query(filters)}`),
+};
 export const reschedulesApi = {
   pending: () => request<Reschedule[]>('/admin/reschedules/pending'),
   decide: (id: string, decision: 'APPROVE' | 'REJECT', reason?: string) => request<Reschedule>(`/admin/reschedules/${id}/decision`, { method: 'POST', body: JSON.stringify({ decision, reason }) }),
