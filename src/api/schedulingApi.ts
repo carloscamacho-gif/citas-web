@@ -30,6 +30,7 @@ export const adminApi = {
 };
 export const professionalApi = {
   agenda: (filters: { from?: string; to?: string; locationId?: string } = {}) => request<Appointment[]>(`/professional/agenda${query(filters)}`),
+  close: (id: string, outcome: 'COMPLETED' | 'NO_SHOW') => request<Appointment>(`/professional/appointments/${id}/close`, { method: 'POST', body: JSON.stringify({ outcome }) }),
 };
 export const reschedulesApi = {
   pending: () => request<Reschedule[]>('/admin/reschedules/pending'),
