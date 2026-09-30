@@ -1,5 +1,5 @@
 import { getAccessToken } from '../auth/authApi';
-import type { Appointment, AvailabilityBlock, AvailableProfessional, CatalogItem, Professional, Specialty } from '../types';
+import type { Appointment, AvailabilityBlock, AvailableProfessional, CatalogItem, Professional, Reschedule, Specialty } from '../types';
 
 const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080').replace(/\/$/, '');
 export class SchedulingApiError extends Error { constructor(public readonly status: number, message: string) { super(message); this.name = 'SchedulingApiError'; } }
@@ -17,6 +17,7 @@ export const appointmentsApi = {
   create: (input: { professionalId: string; locationId: string; specialtyId: string; startAt: string; reason?: string }) => request<Appointment>('/appointments', { method: 'POST', body: JSON.stringify(input) }),
   mine: (filters: { status?: string; date?: string } = {}) => request<Appointment[]>(`/appointments${query(filters)}`),
   cancel: (id: string) => request<Appointment>(`/appointments/${id}/cancel`, { method: 'POST' }),
+  reschedule: (id: string, input: { professionalId?: string; locationId?: string; requestedStartAt: string }) => request<Reschedule>(`/appointments/${id}/reschedule`, { method: 'POST', body: JSON.stringify(input) }),
   pendingSpecialized: () => request<Appointment[]>('/admin/appointments/pending-specialized'),
   decide: (id: string, decision: 'APPROVE' | 'REJECT', reason?: string) => request<Appointment>(`/admin/appointments/${id}/decision`, { method: 'POST', body: JSON.stringify({ decision, reason }) }),
 };
@@ -26,6 +27,10 @@ export const adminApi = {
   createProfessional: (input: Record<string, unknown>) => request<Professional>('/admin/professionals', { method: 'POST', body: JSON.stringify(input) }),
   assignSpecialties: (id: string, specialtyIds: string[], primarySpecialtyId: string) => request<void>(`/admin/professionals/${id}/specialties`, { method: 'PUT', body: JSON.stringify({ specialtyIds, primarySpecialtyId }) }),
   assignLocations: (id: string, locationIds: string[]) => request<void>(`/admin/professionals/${id}/locations`, { method: 'PUT', body: JSON.stringify({ locationIds }) }), setActive: (id: string, active: boolean) => request<Professional>(`/admin/professionals/${id}/active`, { method: 'PATCH', body: JSON.stringify({ active }) }),
+};
+export const reschedulesApi = {
+  pending: () => request<Reschedule[]>('/admin/reschedules/pending'),
+  decide: (id: string, decision: 'APPROVE' | 'REJECT', reason?: string) => request<Reschedule>(`/admin/reschedules/${id}/decision`, { method: 'POST', body: JSON.stringify({ decision, reason }) }),
 };
 export const availabilityApi = {
   listMine: (date?: string, locationId?: string) => request<AvailabilityBlock[]>(`/professional/availability-blocks${query({ date, locationId })}`), create: (input: Omit<AvailabilityBlock, 'id' | 'locationName'>) => request<AvailabilityBlock>('/professional/availability-blocks', { method: 'POST', body: JSON.stringify(input) }),

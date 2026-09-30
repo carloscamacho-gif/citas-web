@@ -8,5 +8,7 @@ export interface Professional extends CatalogItem { firstName?: string; lastName
 export interface AvailabilitySlot { startAt: string; endAt?: string; }
 export interface AvailableProfessional { id: string; name: string; slots: AvailabilitySlot[]; }
 export type AppointmentStatus = 'APPROVED' | 'REQUESTED' | 'REJECTED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW';
-export interface Appointment { id: string; status: AppointmentStatus; professionalName: string; specialtyName: string; locationName: string; startAt: string; durationMinutes: number; rejectionReason?: string; }
+export interface Appointment { id: string; status: AppointmentStatus; professionalName: string; specialtyName: string; locationName: string; professionalId?: string; specialtyId?: string; locationId?: string; startAt: string; durationMinutes: number; rejectionReason?: string; }
+export type RescheduleStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export interface Reschedule { id: string; appointmentId: string; status: RescheduleStatus; patientName: string; professionalName: string; specialtyName: string; locationName: string; previousStartAt: string; requestedStartAt: string; durationMinutes: number; decisionReason?: string; }
 export interface AvailabilityBlock { id: string; locationId: string; locationName?: string; startAt: string; endAt: string; }
