@@ -1,5 +1,5 @@
 import { getAccessToken } from '../auth/authApi';
-import type { Appointment, AvailabilityBlock, AvailableProfessional, CatalogItem, Professional, Reschedule, Specialty } from '../types';
+import type { Appointment, AvailabilityBlock, AvailableProfessional, CatalogItem, Eps, EpsPlan, InsuranceRegime, Professional, Reschedule, Specialty } from '../types';
 
 const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080').replace(/\/$/, '');
 export class SchedulingApiError extends Error { constructor(public readonly status: number, message: string) { super(message); this.name = 'SchedulingApiError'; } }
@@ -28,6 +28,19 @@ export const adminApi = {
   assignSpecialties: (id: string, specialtyIds: string[], primarySpecialtyId: string) => request<void>(`/admin/professionals/${id}/specialties`, { method: 'PUT', body: JSON.stringify({ specialtyIds, primarySpecialtyId }) }),
   assignLocations: (id: string, locationIds: string[]) => request<void>(`/admin/professionals/${id}/locations`, { method: 'PUT', body: JSON.stringify({ locationIds }) }), setActive: (id: string, active: boolean) => request<Professional>(`/admin/professionals/${id}/active`, { method: 'PATCH', body: JSON.stringify({ active }) }),
 };
+export const epsApi = {
+  list: () => request<Eps[]>('/admin/eps'),
+  create: (input: { code: string; name: string }) => request<Eps>('/admin/eps', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, input: Partial<{ name: string; active: boolean }>) => request<Eps>(`/admin/eps/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  remove: (id: string) => request<void>(`/admin/eps/${id}`, { method: 'DELETE' }),
+};
+export const epsPlansApi = {
+  list: () => request<EpsPlan[]>('/admin/eps-plans'),
+  regimes: () => request<InsuranceRegime[]>('/admin/eps-plans/regimes'),
+  create: (input: { epsId: string; regimeId: string; code: string; name: string }) => request<EpsPlan>('/admin/eps-plans', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, input: Partial<{ name: string; active: boolean }>) => request<EpsPlan>(`/admin/eps-plans/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  remove: (id: string) => request<void>(`/admin/eps-plans/${id}`, { method: 'DELETE' }),
+};
 export const professionalApi = {
   agenda: (filters: { from?: string; to?: string; locationId?: string } = {}) => request<Appointment[]>(`/professional/agenda${query(filters)}`),
   close: (id: string, outcome: 'COMPLETED' | 'NO_SHOW') => request<Appointment>(`/professional/appointments/${id}/close`, { method: 'POST', body: JSON.stringify({ outcome }) }),
@@ -41,3 +54,4 @@ export const availabilityApi = {
   update: (id: string, input: Partial<Omit<AvailabilityBlock, 'id' | 'locationName'>>) => request<AvailabilityBlock>(`/professional/availability-blocks/${id}`, { method: 'PATCH', body: JSON.stringify(input) }), remove: (id: string) => request<void>(`/professional/availability-blocks/${id}`, { method: 'DELETE' }),
 };
 export function schedulingErrorMessage(error: unknown): string { if (!(error instanceof SchedulingApiError)) return 'Ocurrió un error inesperado.'; if (error.status === 401) return 'Tu sesión venció. Inicia sesión nuevamente.'; if (error.status === 403) return 'No tienes permiso para realizar esta acción.'; if (error.status === 404) return 'El recurso solicitado no está disponible.'; if (error.status === 409) return 'El horario dejó de estar disponible. Selecciona otro horario.'; if (error.status === 400) return 'Revisa los datos ingresados.'; return error.message; }
+export function catalogErrorMessage(error: unknown): string { if (!(error instanceof SchedulingApiError)) return 'Ocurrió un error inesperado.'; if (error.status === 401) return 'Tu sesión venció. Inicia sesión nuevamente.'; if (error.status === 403) return 'No tienes permiso para realizar esta acción.'; if (error.status === 404) return 'El elemento ya no existe. Actualiza la vista.'; if (error.status === 409) return 'El código ya está en uso, o el elemento está referenciado por otros registros: desactívalo en lugar de eliminarlo.'; if (error.status === 400) return 'Revisa los datos ingresados (EPS y régimen deben existir).'; return error.message; }
