@@ -215,6 +215,27 @@ export async function logout(): Promise<void> {
   }
 }
 
+export interface PasswordResetTicket {
+  message: string;
+  devToken: string | null;
+}
+
+/** HU-003: solicita la recuperación. La respuesta es igual exista o no la cuenta; `devToken` solo llega en laboratorio. */
+export async function requestPasswordReset(email: string): Promise<PasswordResetTicket> {
+  return request<PasswordResetTicket>('/password-reset/request', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+/** HU-003: cambia la contraseña con el token recibido. */
+export async function confirmPasswordReset(token: string, newPassword: string): Promise<void> {
+  await request<void>('/password-reset/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ token, newPassword }),
+  });
+}
+
 export function getAccessToken(): string | null {
   return accessToken;
 }

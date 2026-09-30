@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Mail, Lock, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ShieldCheck, KeyRound, CheckCircle2 } from 'lucide-react';
 import { User } from '../types';
-import { authErrorMessage, login } from '../auth/authApi';
+import { authErrorMessage, confirmPasswordReset, login, requestPasswordReset } from '../auth/authApi';
 
 interface LoginScreenProps {
   onLoginSuccess: (user: User) => void;
@@ -18,6 +18,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [mode, setMode] = useState<'login' | 'forgot'>('login');
+  const [infoMessage, setInfoMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,14 +127,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             {/* Section Headings */}
             <div className="mb-8" id="login-heading-group">
               <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-                Iniciar Sesión
+                {mode === 'login' ? 'Iniciar Sesión' : 'Recuperar contraseña'}
               </h2>
               <p className="text-slate-500 text-sm mt-1.5">
-                Ingresa tus credenciales para administrar tus citas médicas programadas.
+                {mode === 'login'
+                  ? 'Ingresa tus credenciales para administrar tus citas médicas programadas.'
+                  : 'Te ayudamos a restablecer el acceso a tu cuenta.'}
               </p>
             </div>
 
+            {infoMessage && mode === 'login' && (
+              <div role="status" className="mb-5 p-3 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />{infoMessage}
+              </div>
+            )}
+
             {/* Login Form */}
+            {mode === 'login' ? (
             <form
               className="space-y-5"
               data-purpose="login-credentials-form"
@@ -214,7 +225,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center text-xs sm:text-sm pt-1">
+              <div className="flex items-center justify-between text-xs sm:text-sm pt-1">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500/25 border-slate-300 transition-colors"
@@ -226,6 +237,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   />
                   <span className="text-slate-600 font-normal">Recordar sesión</span>
                 </label>
+                <button
+                  type="button"
+                  id="forgot-password-btn"
+                  onClick={() => { setMode('forgot'); setErrorMessage(''); setInfoMessage(''); }}
+                  className="font-semibold text-blue-600 hover:text-blue-700 transition-colors bg-transparent border-0 p-0 cursor-pointer"
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
               </div>
 
               {/* Main Primary CTA Button */}
@@ -246,6 +265,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 )}
               </button>
             </form>
+            ) : (
+              <ForgotPasswordPanel
+                initialEmail={email}
+                onBack={() => { setMode('login'); setErrorMessage(''); }}
+                onSuccess={(msg) => { setMode('login'); setErrorMessage(''); setInfoMessage(msg); }}
+              />
+            )}
 
           </div>
 
@@ -279,5 +305,92 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         {/* END: RightAuthFormPanel */}
       </div>
     </main>
+  );
+};
+
+interface ForgotPasswordPanelProps {
+  initialEmail: string;
+  onBack: () => void;
+  onSuccess: (message: string) => void;
+}
+
+/** HU-003: solicita el token de recuperación y define la nueva contraseña. */
+const ForgotPasswordPanel: React.FC<ForgotPasswordPanelProps> = ({ initialEmail, onBack, onSuccess }) => {
+  const [step, setStep] = useState<'request' | 'reset'>('request');
+  const [email, setEmail] = useState(initialEmail);
+  const [token, setToken] = useState('');
+  const [devToken, setDevToken] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const submitRequest = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setLoading(true); setError(''); setNotice('');
+    try {
+      const ticket = await requestPasswordReset(email);
+      setNotice(ticket.message);
+      if (ticket.devToken) { setDevToken(ticket.devToken); setToken(ticket.devToken); }
+      setStep('reset');
+    } catch (cause) {
+      setError(authErrorMessage(cause));
+    } finally { setLoading(false); }
+  };
+
+  const submitReset = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setLoading(true); setError('');
+    try {
+      await confirmPasswordReset(token.trim(), newPassword);
+      onSuccess('Tu contraseña fue actualizada. Inicia sesión con la nueva.');
+    } catch (cause) {
+      setError(authErrorMessage(cause));
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="space-y-5" id="forgot-password-panel">
+      {error && <div role="alert" className="p-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl">{error}</div>}
+      {notice && <div role="status" className="p-3 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-xl">{notice}</div>}
+
+      {step === 'request' ? (
+        <form className="space-y-5" onSubmit={submitRequest} id="forgot-request-form">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2" htmlFor="forgot-email">Correo electrónico</label>
+            <div className="relative rounded-xl shadow-sm">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400"><Mail className="h-4 w-4" strokeWidth={1.8} /></div>
+              <input className="block w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" id="forgot-email" type="email" required placeholder="usuario@ejemplo.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+          </div>
+          <button type="submit" disabled={loading} className="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-xl transition-all disabled:opacity-75">{loading ? 'Enviando…' : 'Enviar instrucciones'}</button>
+        </form>
+      ) : (
+        <form className="space-y-5" onSubmit={submitReset} id="forgot-reset-form">
+          {devToken && (
+            <div className="p-3 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl">
+              <strong>Modo laboratorio:</strong> como no hay envío de correo, usamos este token para continuar. En un entorno real llegaría a tu correo.
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2" htmlFor="forgot-token">Token de recuperación</label>
+            <div className="relative rounded-xl shadow-sm">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400"><KeyRound className="h-4 w-4" strokeWidth={1.8} /></div>
+              <input className="block w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" id="forgot-token" type="text" required placeholder="Pega aquí el token" value={token} onChange={(e) => setToken(e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2" htmlFor="forgot-new-password">Nueva contraseña</label>
+            <div className="relative rounded-xl shadow-sm">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400"><Lock className="h-4 w-4" strokeWidth={1.8} /></div>
+              <input className="block w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" id="forgot-new-password" type="password" required minLength={8} placeholder="Mínimo 8 caracteres" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+            </div>
+          </div>
+          <button type="submit" disabled={loading} className="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-xl transition-all disabled:opacity-75">{loading ? 'Actualizando…' : 'Cambiar contraseña'}</button>
+        </form>
+      )}
+
+      <button type="button" onClick={onBack} className="w-full text-xs font-semibold text-slate-500 hover:text-slate-700 transition-colors bg-transparent border-0 p-0 cursor-pointer">Volver a iniciar sesión</button>
+    </div>
   );
 };
