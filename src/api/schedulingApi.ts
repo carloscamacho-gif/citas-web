@@ -15,6 +15,8 @@ export const catalogsApi = { locations: () => request<CatalogItem[]>('/catalogs/
 export const appointmentsApi = {
   availability: (filters: { locationId: string; specialtyId: string; professionalId?: string; date: string }) => request<AvailableProfessional[]>(`/availability${query(filters)}`),
   create: (input: { professionalId: string; locationId: string; specialtyId: string; startAt: string; reason?: string }) => request<Appointment>('/appointments', { method: 'POST', body: JSON.stringify(input) }),
+  mine: (filters: { status?: string; date?: string } = {}) => request<Appointment[]>(`/appointments${query(filters)}`),
+  cancel: (id: string) => request<Appointment>(`/appointments/${id}/cancel`, { method: 'POST' }),
   pendingSpecialized: () => request<Appointment[]>('/admin/appointments/pending-specialized'),
   decide: (id: string, decision: 'APPROVE' | 'REJECT', reason?: string) => request<Appointment>(`/admin/appointments/${id}/decision`, { method: 'POST', body: JSON.stringify({ decision, reason }) }),
 };

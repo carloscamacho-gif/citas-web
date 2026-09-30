@@ -3,19 +3,67 @@ import { Calendar, CheckCircle2, Clock, LogOut, MapPin, Plus, ShieldCheck, UserR
 import { adminApi, appointmentsApi, availabilityApi, catalogsApi, schedulingErrorMessage } from '../api/schedulingApi';
 import type { Appointment, AvailabilityBlock, CatalogItem, Professional, Specialty, User } from '../types';
 
-interface Props { user: User; onOpenBooking: () => void; onLogout: () => void; }
+interface Props { user: User; onOpenBooking: () => void; onLogout: () => void; refreshKey?: number; }
 const heading = (role: string) => role === 'ADMIN' ? 'Administración de la oferta' : role === 'PROFESSIONAL' ? 'Mi disponibilidad' : 'Agenda tu atención';
 
-export function DashboardScreen({ user, onOpenBooking, onLogout }: Props) {
+const STATUS_LABEL: Record<string, string> = { REQUESTED: 'Pendiente', APPROVED: 'Aprobada', REJECTED: 'Rechazada', CANCELLED: 'Cancelada', COMPLETED: 'Atendida', NO_SHOW: 'No asistió' };
+const STATUS_STYLE: Record<string, string> = { REQUESTED: 'bg-amber-50 text-amber-700 border-amber-200', APPROVED: 'bg-emerald-50 text-emerald-700 border-emerald-200', REJECTED: 'bg-red-50 text-red-700 border-red-200', CANCELLED: 'bg-slate-100 text-slate-600 border-slate-200', COMPLETED: 'bg-blue-50 text-blue-700 border-blue-200', NO_SHOW: 'bg-slate-100 text-slate-600 border-slate-200' };
+const CANCELLABLE = new Set(['REQUESTED', 'APPROVED']);
+const formatDateTime = (iso: string) => { try { return new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Bogota' }).format(new Date(iso)); } catch { return iso; } };
+
+export function DashboardScreen({ user, onOpenBooking, onLogout, refreshKey = 0 }: Props) {
   const role = user.roles?.includes('ADMIN') ? 'ADMIN' : user.roles?.includes('PROFESSIONAL') ? 'PROFESSIONAL' : 'USER';
   return <div className="w-full max-w-6xl mx-auto space-y-6 pb-12" id="portal-dashboard">
     <header className="bg-white rounded-2xl shadow-sm border border-slate-100 px-6 py-4 flex flex-wrap items-center justify-between gap-4"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-sky-400 text-white flex items-center justify-center shadow-md"><Calendar className="w-5 h-5" /></div><div><strong className="block text-slate-900">Portal de Citas</strong><span className="text-xs text-slate-400 uppercase">{heading(role)}</span></div></div><div className="flex items-center gap-3"><div className="hidden sm:block text-right"><strong className="block text-sm text-slate-900">{user.name}</strong><span className="text-xs text-slate-400">{role}</span></div>{role === 'USER' && <button type="button" onClick={onOpenBooking} className="px-4 py-2.5 bg-blue-600 text-white text-xs font-semibold rounded-xl"><Plus className="inline w-4 h-4 mr-1" />Agendar cita</button>}<button type="button" onClick={onLogout} title="Cerrar sesión" className="p-2 text-slate-400 hover:text-red-600"><LogOut className="w-5 h-5" /></button></div></header>
-    {role === 'USER' ? <UserHome onOpenBooking={onOpenBooking} /> : role === 'ADMIN' ? <AdminHome /> : <ProfessionalHome />}
+    {role === 'USER' ? <UserHome onOpenBooking={onOpenBooking} refreshKey={refreshKey} /> : role === 'ADMIN' ? <AdminHome /> : <ProfessionalHome />}
     <footer className="p-4 bg-white rounded-2xl border border-slate-100 text-center text-xs text-slate-500"><ShieldCheck className="inline w-4 h-4 text-emerald-600 mr-1" />Portal de Citas Médicas · datos sintéticos de laboratorio</footer>
   </div>;
 }
 
-function UserHome({ onOpenBooking }: { onOpenBooking: () => void }) { return <section className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100 text-center space-y-4"><div className="w-14 h-14 mx-auto bg-blue-50 rounded-2xl text-blue-600 flex items-center justify-center"><Calendar /></div><h1 className="text-2xl font-bold text-slate-900">Encuentra un horario disponible</h1><p className="max-w-xl mx-auto text-sm text-slate-500">Selecciona sede, especialidad, profesional y horario. El sistema confirma la disponibilidad al enviar la solicitud.</p><button type="button" onClick={onOpenBooking} className="px-5 py-3 bg-blue-600 text-white text-sm font-semibold rounded-xl">Buscar y agendar</button></section>; }
+function UserHome({ onOpenBooking, refreshKey }: { onOpenBooking: () => void; refreshKey: number }) {
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
+  const load = () => { setLoading(true); return appointmentsApi.mine().then((items) => { setAppointments(items); setError(''); }).catch((cause) => setError(schedulingErrorMessage(cause))).finally(() => setLoading(false)); };
+  useEffect(() => { load(); }, [refreshKey]);
+
+  const cancel = async (appointment: Appointment) => {
+    setConfirmingId(null); setCancelingId(appointment.id); setError('');
+    try { await appointmentsApi.cancel(appointment.id); await load(); }
+    catch (cause) { setError(schedulingErrorMessage(cause)); }
+    finally { setCancelingId(null); }
+  };
+
+  return <div className="space-y-6">
+    <section className="bg-gradient-to-br from-[#07152B] to-[#0E2952] rounded-3xl p-6 sm:p-8 text-white flex flex-wrap items-center justify-between gap-4">
+      <div><h1 className="text-xl sm:text-2xl font-bold">Tus citas médicas</h1><p className="text-sm text-slate-300 mt-1">Agenda una nueva cita o gestiona las existentes.</p></div>
+      <button type="button" onClick={onOpenBooking} className="px-5 py-3 bg-white text-blue-700 text-sm font-semibold rounded-xl shadow"><Plus className="inline w-4 h-4 mr-1" />Agendar cita</button>
+    </section>
+
+    <section className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-4">
+      <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-slate-900">Mis citas</h2><button type="button" onClick={load} className="text-xs text-blue-600 font-semibold">Actualizar</button></div>
+      {error && <p role="alert" className="p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl">{error}</p>}
+      {loading && <p className="text-sm text-slate-500">Cargando tus citas…</p>}
+      {!loading && appointments.length === 0 && <div className="p-8 text-center text-sm text-slate-500 bg-slate-50 rounded-2xl"><Calendar className="w-8 h-8 mx-auto mb-2 text-slate-300" />Todavía no tienes citas. Agenda la primera con el botón de arriba.</div>}
+      <ul className="space-y-3">
+        {appointments.map((item) => <li key={item.id} className="p-4 border border-slate-100 rounded-2xl grid md:grid-cols-[1fr_auto] gap-3 items-center">
+          <div>
+            <div className="flex items-center gap-2 flex-wrap"><strong className="text-sm text-slate-900">{item.specialtyName}</strong><span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_STYLE[item.status] ?? 'bg-slate-100 text-slate-600 border-slate-200'}`}>{STATUS_LABEL[item.status] ?? item.status}</span></div>
+            <p className="text-xs text-slate-500 mt-1"><UserRound className="inline w-3.5 h-3.5 mr-1" />{item.professionalName} · <MapPin className="inline w-3.5 h-3.5 mx-1" />{item.locationName}</p>
+            <p className="text-xs text-slate-500 mt-1"><Clock className="inline w-3.5 h-3.5 mr-1" />{formatDateTime(item.startAt)} · {item.durationMinutes} min</p>
+            {item.status === 'REJECTED' && item.rejectionReason && <p className="text-xs text-red-600 mt-1">Motivo: {item.rejectionReason}</p>}
+          </div>
+          {CANCELLABLE.has(item.status) && (confirmingId === item.id
+            ? <div className="flex items-center gap-2"><span className="text-xs text-slate-500">¿Seguro?</span><button type="button" disabled={cancelingId === item.id} onClick={() => cancel(item)} className="px-3 py-2 text-xs font-semibold text-white bg-red-600 rounded-xl hover:bg-red-700 disabled:opacity-50">{cancelingId === item.id ? 'Cancelando…' : 'Sí, cancelar'}</button><button type="button" onClick={() => setConfirmingId(null)} className="px-3 py-2 text-xs font-semibold text-slate-500 rounded-xl">No</button></div>
+            : <button type="button" onClick={() => setConfirmingId(item.id)} className="px-3 py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-xl hover:bg-red-50">Cancelar</button>)}
+        </li>)}
+      </ul>
+    </section>
+  </div>;
+}
 
 function AdminHome() {
   const [specialties, setSpecialties] = useState<Specialty[]>([]); const [pending, setPending] = useState<Appointment[]>([]); const [error, setError] = useState(''); const [name, setName] = useState(''); const [code, setCode] = useState(''); const [duration, setDuration] = useState<30 | 60>(30); const [general, setGeneral] = useState(false); const [reasons, setReasons] = useState<Record<string, string>>({});
